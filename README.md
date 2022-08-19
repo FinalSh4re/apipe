@@ -1,7 +1,7 @@
 # apipe
 Anonymous UNIX pipe type in rust.
 
-# Usage
+## Usage
 
 ```rust
 use apipe::CommandPipe;
