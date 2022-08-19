@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>apipe</title>
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+    <h1 class="title">apipe</h1>
+    <nav id="TOC"><ul>
+<li><a href="#usage">1 Usage</a><ul></ul></li></ul></nav><p>Anonymous UNIX pipe type in rust.</p>
+<h1 id="usage"><a href="#usage">1 Usage</a></h1>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">apipe::CommandPipe</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pipe</span> <span class="op">=</span> <span class="ident">CommandPipe::new</span>();
+
+    <span class="ident">pipe</span>.<span class="ident">add_command</span>(<span class="string">&quot;echo&quot;</span>)
+        .<span class="ident">arg</span>(<span class="string">&quot;This is a test.&quot;</span>)
+        .<span class="ident">add_command</span>(<span class="string">&quot;grep&quot;</span>)
+        .<span class="ident">arg</span>(<span class="string">&quot;-Eo&quot;</span>)
+        .<span class="ident">arg</span>(<span class="string">r&quot;\w\w\sa[^.]*&quot;</span>);
+
+    <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">pipe</span>.<span class="ident">spawn</span>();
+
+    <span class="macro">assert_eq!</span>(
+        <span class="ident">String::from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">output</span>.<span class="ident">unwrap</span>().<span class="ident">stdout</span>),
+        <span class="ident">String::from</span>(<span class="string">&quot;is a test\n&quot;</span>)
+    );
+}</code></pre></div>
+
+    
+</body>
+</html>
