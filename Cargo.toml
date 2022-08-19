@@ -1,9 +1,12 @@
 [package]
 name = "apipe"
+authors = ["A.Hoffmann <FinalSh4re>"]
+description = "An anonymous UNIX pipe type."
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/FinalSh4re/apipe-rs"
 
 [dependencies]
 anyhow = { version = "1.0.62", features = ["backtrace"] }
