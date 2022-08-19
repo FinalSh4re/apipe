@@ -54,6 +54,13 @@ impl CommandPipe {
                 .stdout(Stdio::piped())
                 .spawn()?;
 
+            child.wait().with_context(|| {
+                format!(
+                    "Child process exited with error code {}",
+                    proc.get_program().to_string_lossy()
+                )
+            })?;
+
             stdin = child
                 .stdout
                 .take()
