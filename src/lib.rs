@@ -2,7 +2,7 @@
 //!
 //! ## Usage
 //!
-//! ```rust
+//! ```
 //! use apipe::CommandPipe;
 //!
 //! fn main() {
@@ -124,11 +124,17 @@ impl CommandPipe {
     /// ```
     pub fn spawn(mut self) -> Result<Output> {
         let mut commands = self.pipeline.iter_mut();
-        let mut child = commands
+        let first_command = commands
             .next()
-            .context("The pipe seems to be empty, no Commands to spawn.")?
-            .stdout(Stdio::piped())
-            .spawn()?;
+            .context("The pipe seems to be empty, no Commands to spawn.")?;
+        let mut child = first_command.stdout(Stdio::piped()).spawn()?;
+
+        child.wait().with_context(|| {
+            format!(
+                "Child process '{}' exited with error code.",
+                first_command.get_program().to_string_lossy()
+            )
+        })?;
 
         let mut stdin = child
             .stdout
@@ -154,6 +160,8 @@ impl CommandPipe {
                 .context("Couldn't read stdout of previous command.")?;
         }
 
+        // Need to move the stdout from last command back
+        // otherwise the final output will be empty
         child.stdout = Some(stdin);
 
         let output = child
