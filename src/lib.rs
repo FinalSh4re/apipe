@@ -65,7 +65,7 @@ impl CommandPipe {
         self
     }
 
-    /// Add a single arguement to the preceding command in the pipe.
+    /// Add a single argument to the preceding command in the pipe.
     ///
     /// Arguments need to be passed one at a time.
     ///
@@ -84,7 +84,7 @@ impl CommandPipe {
         self
     }
 
-    /// Add multiple arguements to the preceding command in the pipe.
+    /// Add multiple arguments to the preceding command in the pipe.
     ///
     /// Arguments are passed as a sequence.
     ///
