@@ -125,9 +125,9 @@ impl CommandPipe {
     /// pipe.add_command("ls")
     ///     .args(vec!["-la", "~/Documents"])
     ///     .add_command("grep")
-    ///     .arg("My_Dir");
-    ///
-    /// let output = pipe.spawn();
+    ///     .arg("My_Dir")
+    ///     .spawn()
+    ///     .expect("Failed to spawn pipe.");
     /// ```
     pub fn spawn(&mut self) -> Result<()> {
         for command in self.pipeline.iter_mut() {
