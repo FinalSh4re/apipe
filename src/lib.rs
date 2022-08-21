@@ -24,12 +24,13 @@
 //! }
 //! ```
 
-use anyhow::{Context, Result};
-use std::process::{Command, Output, Stdio};
+use anyhow::{anyhow, Context, Result};
+use std::process::{Child, Command, Output, Stdio};
 
 /// A type representing an annonymous pipe
 pub struct CommandPipe {
     pipeline: Vec<Command>,
+    length: usize,
 }
 
 impl CommandPipe {
@@ -44,6 +45,7 @@ impl CommandPipe {
     pub fn new() -> Self {
         CommandPipe {
             pipeline: Vec::new(),
+            length: 0,
         }
     }
 
@@ -62,6 +64,7 @@ impl CommandPipe {
     pub fn add_command(&mut self, c: &str) -> &mut Self {
         let command = Command::new(c);
         self.pipeline.push(command);
+        self.length += 1;
 
         self
     }
@@ -123,52 +126,43 @@ impl CommandPipe {
     /// let output = pipe.spawn();
     /// ```
     pub fn spawn(mut self) -> Result<Output> {
-        let mut commands = self.pipeline.iter_mut();
-        let first_command = commands
-            .next()
-            .context("The pipe seems to be empty, no Commands to spawn.")?;
-        let mut child = first_command.stdout(Stdio::piped()).spawn()?;
+        let mut child: Option<Child> = None;
+        let mut stdout = Stdio::null();
 
-        child.wait().with_context(|| {
-            format!(
-                "Child process '{}' exited with error code.",
-                first_command.get_program().to_string_lossy()
-            )
-        })?;
+        for (i, command) in self.pipeline.iter_mut().enumerate() {
+            child = Some(command.stdin(stdout).stdout(Stdio::piped()).spawn()?);
 
-        let mut stdin = child
-            .stdout
-            .take()
-            .context("Couldn't read stdout of previous command.")?;
+            child = match child {
+                Some(mut c) => {
+                    c.wait().with_context(|| {
+                        format!(
+                            "Child process '{}' exited with error code.",
+                            command.get_program().to_string_lossy()
+                        )
+                    })?;
+                    Some(c)
+                }
+                None => None,
+            };
 
-        for proc in commands {
-            child = proc
-                .stdin(Stdio::from(stdin))
-                .stdout(Stdio::piped())
-                .spawn()?;
+            stdout = if !(i == self.length - 1) {
+                let stdin = child
+                    .take()
+                    .unwrap()
+                    .stdout
+                    .take()
+                    .context("Couldn't read stdout of previous command.")?;
 
-            child.wait().with_context(|| {
-                format!(
-                    "Child process '{}' exited with error code.",
-                    proc.get_program().to_string_lossy()
-                )
-            })?;
-
-            stdin = child
-                .stdout
-                .take()
-                .context("Couldn't read stdout of previous command.")?;
+                Stdio::from(stdin)
+            } else {
+                Stdio::null()
+            };
         }
 
-        // Need to move the stdout from last command back
-        // otherwise the final output will be empty
-        child.stdout = Some(stdin);
-
-        let output = child
-            .wait_with_output()
-            .context("Failed to wait for process.")?;
-
-        Ok(output)
+        match child {
+            Some(c) => c.wait_with_output().context("Failed to wait for process."),
+            None => Err(anyhow!("No command in pipeline.")),
+        }
     }
 
     // Returns a [Vec] with references to all the commands currently in the pipeline.
