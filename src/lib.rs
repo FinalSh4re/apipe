@@ -13,11 +13,9 @@
 //!     .spawn()
 //!     .expect("Failed to spawn pipe.");
 //!     
-//! let output = &pipe.output()
-//!                   .unwrap()
-//!                   .stdout;
+//! let output = pipe.output().unwrap().stdout.as_slice();
 //!     
-//! assert_eq!(&String::from_utf8_lossy(&output), "is a test\n");
+//! assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
 //! ```
 
 use anyhow::{anyhow, Context, Result};
