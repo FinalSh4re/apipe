@@ -14,13 +14,12 @@ fn main() {
         .arg("This is a test.")
         .add_command("grep")
         .arg("-Eo")
-        .arg(r"\w\w\sa[^.]*");
+        .arg(r"\w\w\sa[^.]*")
+        .spawn()
+        .expect("Failed to spawn pipe.");
 
-    let output = pipe.spawn();
+    let output = pipe.output();
 
-    assert_eq!(
-        String::from_utf8_lossy(&output.unwrap().stdout),
-        String::from("is a test\n")
-    );
+    assert_eq!(output.unwrap(), "is a test\n");
 }
 ```
