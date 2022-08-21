@@ -13,25 +13,22 @@
 //!     .spawn()
 //!     .expect("Failed to spawn pipe.");
 //!     
-//! let output = pipe.output();
+//! let output = &pipe.output()
+//!                   .unwrap()
+//!                   .stdout;
 //!     
-//! assert_eq!(
-//!     output.unwrap(),
-//!     "is a test\n"
-//! );
+//! assert_eq!(&String::from_utf8_lossy(&output), "is a test\n");
 //! ```
 
 use anyhow::{anyhow, Context, Result};
-use std::{
-    io::Read,
-    process::{Child, Command, Stdio},
-};
+use std::process::{Child, Command, Output, Stdio};
+
 #[derive(Debug, Default)]
 /// A type representing an annonymous pipe
 pub struct CommandPipe {
     pipeline: Vec<Command>,
-    spawned_processes: Vec<Child>,
-    output: Option<String>,
+    last_spawned: Option<Child>,
+    output: Option<Output>,
 }
 
 impl CommandPipe {
@@ -46,7 +43,7 @@ impl CommandPipe {
     pub fn new() -> Self {
         CommandPipe {
             pipeline: Vec::new(),
-            spawned_processes: Vec::new(),
+            last_spawned: None,
             output: None,
         }
     }
@@ -128,8 +125,8 @@ impl CommandPipe {
     /// ```
     pub fn spawn(&mut self) -> Result<()> {
         for command in self.pipeline.iter_mut() {
-            let stdin = match self.spawned_processes.last_mut() {
-                Some(proc) => {
+            let stdin = match self.last_spawned.take() {
+                Some(mut proc) => {
                     let stdout = proc
                         .stdout
                         .take()
@@ -149,31 +146,25 @@ impl CommandPipe {
                 )
             })?;
 
-            self.spawned_processes.push(child);
+            self.last_spawned.replace(child);
         }
 
         Ok(())
     }
 
-    pub fn output(&mut self) -> Result<&str> {
-        match &self.output {
+    pub fn output(&mut self) -> Result<&Output> {
+        match self.output {
+            Some(_) => Ok(self.output.as_ref().unwrap()),
             None => {
-                if let Some(proc) = self.spawned_processes.last_mut() {
-                    let mut output = String::new();
-                    proc.stdout
-                        .as_mut()
-                        .context("Process isn't running")?
-                        .read_to_string(&mut output)
-                        .context("Failed to read stdout of final command.")?;
-                    self.output.replace(output);
+                if let Some(last_proc) = self.last_spawned.take() {
+                    let output = last_proc.wait_with_output()?;
 
-                    Ok(self.output.as_ref().unwrap())
+                    self.output.replace(output);
+                    self.output()
                 } else {
-                    Err(anyhow!("No spawned processes!"))
+                    Err(anyhow!("No spawned process in pipeline"))
                 }
             }
-
-            Some(_) => Ok(self.output.as_ref().unwrap()),
         }
     }
 
@@ -222,8 +213,8 @@ mod tests {
             .spawn()
             .expect("Failed to spawn pipe.");
 
-        let output = pipe.output();
+        let output = pipe.output().unwrap().stdout.as_slice();
 
-        assert_eq!(output.unwrap(), "is a test\n");
+        assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
     }
 }
