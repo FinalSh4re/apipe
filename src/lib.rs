@@ -30,7 +30,6 @@ use std::{
 /// A type representing an annonymous pipe
 pub struct CommandPipe {
     pipeline: Vec<Command>,
-    length: usize,
     spawned_processes: Vec<Child>,
     output: Option<String>,
 }
@@ -47,7 +46,6 @@ impl CommandPipe {
     pub fn new() -> Self {
         CommandPipe {
             pipeline: Vec::new(),
-            length: 0,
             spawned_processes: Vec::new(),
             output: None,
         }
@@ -68,7 +66,6 @@ impl CommandPipe {
     pub fn add_command(&mut self, c: &str) -> &mut Self {
         let command = Command::new(c);
         self.pipeline.push(command);
-        self.length += 1;
 
         self
     }
@@ -171,7 +168,6 @@ impl CommandPipe {
                     self.output.replace(output);
 
                     Ok(self.output.as_ref().unwrap())
-
                 } else {
                     Err(anyhow!("No spawned processes!"))
                 }
