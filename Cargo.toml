@@ -2,7 +2,7 @@
 name = "apipe"
 authors = ["A.Hoffmann <FinalSh4re>"]
 description = "An anonymous UNIX pipe type."
-keywords = ["pipe", "anonymous pipe", "process", "cli", "redirection", "stdin", "stdout"]
+keywords = ["pipe", "anonymous", "process", "cli", "redirection", "stdin", "stdout"]
 version = "0.1.0"
 edition = "2021"
 readme = "README.md"
