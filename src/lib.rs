@@ -3,34 +3,36 @@
 //! ## Usage
 //!
 //! ```
-//! use apipe::CommandPipe;
+//! let mut pipe = apipe::CommandPipe::new();
 //!
-//! fn main() {
-//!
-//!     let mut pipe = CommandPipe::new();
-//!
-//!     pipe.add_command("echo")
-//!         .arg("This is a test.")
-//!         .add_command("grep")
-//!         .arg("-Eo")
-//!         .arg(r"\w\w\sa[^.]*");
-//!
-//!     let output = pipe.spawn();
-//!
-//!     assert_eq!(
-//!         String::from_utf8_lossy(&output.unwrap().stdout),
-//!         String::from("is a test\n")
-//!     );
-//! }
+//! pipe.add_command("echo")
+//!     .arg("This is a test.")
+//!     .add_command("grep")
+//!     .arg("-Eo")
+//!     .arg(r"\w\w\sa[^.]*")
+//!     .spawn()
+//!     .expect("Failed to spawn pipe.");
+//!     
+//! let output = pipe.output();
+//!     
+//! assert_eq!(
+//!     output.unwrap(),
+//!     "is a test\n"
+//! );
 //! ```
 
 use anyhow::{anyhow, Context, Result};
-use std::process::{Child, Command, Output, Stdio};
-
+use std::{
+    io::Read,
+    process::{Child, Command, Stdio},
+};
+#[derive(Debug, Default)]
 /// A type representing an annonymous pipe
 pub struct CommandPipe {
     pipeline: Vec<Command>,
     length: usize,
+    spawned_processes: Vec<Child>,
+    output: Option<String>,
 }
 
 impl CommandPipe {
@@ -46,6 +48,8 @@ impl CommandPipe {
         CommandPipe {
             pipeline: Vec::new(),
             length: 0,
+            spawned_processes: Vec::new(),
+            output: None,
         }
     }
 
@@ -125,46 +129,59 @@ impl CommandPipe {
     ///
     /// let output = pipe.spawn();
     /// ```
-    pub fn spawn(mut self) -> Result<Output> {
-        let mut child: Option<Child> = None;
-        let mut stdout = Stdio::null();
+    pub fn spawn(&mut self) -> Result<()> {
+        for command in self.pipeline.iter_mut() {
+            let stdin = match self.spawned_processes.last_mut() {
+                Some(proc) => {
+                    let stdout = proc
+                        .stdout
+                        .take()
+                        .context("Failed to get stdout of previous process.")?;
 
-        for (i, command) in self.pipeline.iter_mut().enumerate() {
-            child = Some(command.stdin(stdout).stdout(Stdio::piped()).spawn()?);
-
-            child = match child {
-                Some(mut c) => {
-                    c.wait().with_context(|| {
-                        format!(
-                            "Child process '{}' exited with error code.",
-                            command.get_program().to_string_lossy()
-                        )
-                    })?;
-                    Some(c)
+                    Stdio::from(stdout)
                 }
-                None => None,
+                None => Stdio::null(),
             };
 
-            stdout = if !(i == self.length - 1) {
-                let stdin = child
-                    .take()
-                    .unwrap()
-                    .stdout
-                    .take()
-                    .context("Couldn't read stdout of previous command.")?;
+            let mut child = command.stdin(stdin).stdout(Stdio::piped()).spawn()?;
 
-                Stdio::from(stdin)
-            } else {
-                Stdio::null()
-            };
+            child.wait().with_context(|| {
+                format!(
+                    "Child process '{}' exited with error code.",
+                    command.get_program().to_string_lossy()
+                )
+            })?;
+
+            self.spawned_processes.push(child);
         }
 
-        match child {
-            Some(c) => c.wait_with_output().context("Failed to wait for process."),
-            None => Err(anyhow!("No command in pipeline.")),
+        Ok(())
+    }
+
+    pub fn output(&mut self) -> Result<&str> {
+        match &self.output {
+            None => {
+                if let Some(proc) = self.spawned_processes.last_mut() {
+                    let mut output = String::new();
+                    proc.stdout
+                        .as_mut()
+                        .context("Process isn't running")?
+                        .read_to_string(&mut output)
+                        .context("Failed to read stdout of final command.")?;
+                    self.output.replace(output);
+
+                    Ok(self.output.as_ref().unwrap())
+
+                } else {
+                    Err(anyhow!("No spawned processes!"))
+                }
+            }
+
+            Some(_) => Ok(self.output.as_ref().unwrap()),
         }
     }
 
+    #[cfg(test)]
     // Returns a [Vec] with references to all the commands currently in the pipeline.
     pub fn get_pipeline(&self) -> Vec<&Command> {
         self.pipeline.iter().collect()
@@ -205,13 +222,12 @@ mod tests {
             .arg("This is a test.")
             .add_command("grep")
             .arg("-Eo")
-            .arg(r"\w\w\sa[^.]*");
+            .arg(r"\w\w\sa[^.]*")
+            .spawn()
+            .expect("Failed to spawn pipe.");
 
-        let output = pipe.spawn();
+        let output = pipe.output();
 
-        assert_eq!(
-            String::from_utf8_lossy(&output.unwrap().stdout),
-            String::from("is a test\n")
-        );
+        assert_eq!(output.unwrap(), "is a test\n");
     }
 }
