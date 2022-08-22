@@ -107,7 +107,7 @@ impl CommandPipe {
         self
     }
 
-    /// Runs the commands in the pipe and returns the output.
+    /// Runs the commands in the pipe.
     ///
     /// ## Example
     ///
@@ -150,6 +150,26 @@ impl CommandPipe {
         Ok(())
     }
 
+    /// Returns the output of the pipe.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use apipe::CommandPipe;
+    /// let mut pipe = apipe::CommandPipe::new();
+    ///
+    /// pipe.add_command("echo")
+    ///     .arg("This is a test.")
+    ///     .add_command("grep")
+    ///     .arg("-Eo")
+    ///     .arg(r"\w\w\sa[^.]*")
+    ///     .spawn()
+    ///     .expect("Failed to spawn pipe.");
+    ///     
+    /// let output = pipe.output().unwrap().stdout.as_slice();
+    ///     
+    /// assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+    /// ```
     pub fn output(&mut self) -> Result<&Output> {
         match self.output {
             Some(_) => Ok(self.output.as_ref().unwrap()),
