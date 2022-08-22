@@ -165,12 +165,6 @@ impl CommandPipe {
             }
         }
     }
-
-    #[cfg(test)]
-    // Returns a [Vec] with references to all the commands currently in the pipeline.
-    pub fn get_pipeline(&self) -> Vec<&Command> {
-        self.pipeline.iter().collect()
-    }
 }
 
 #[cfg(test)]
@@ -183,7 +177,7 @@ mod tests {
 
         pipe.add_command("ls").arg("-la").arg("~/Documents");
 
-        let args: Vec<&std::ffi::OsStr> = pipe.get_pipeline()[0].get_args().collect();
+        let args: Vec<&std::ffi::OsStr> = pipe.pipeline[0].get_args().collect();
 
         assert_eq!(args, &["-la", "~/Documents"])
     }
@@ -194,7 +188,7 @@ mod tests {
 
         pipe.add_command("ls").args(vec!["-la", "~/Documents"]);
 
-        let args: Vec<&std::ffi::OsStr> = pipe.get_pipeline()[0].get_args().collect();
+        let args: Vec<&std::ffi::OsStr> = pipe.pipeline[0].get_args().collect();
 
         assert_eq!(args, &["-la", "~/Documents"])
     }
