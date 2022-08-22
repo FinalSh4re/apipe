@@ -13,13 +13,13 @@
 //!     .spawn()
 //!     .expect("Failed to spawn pipe.");
 //!     
-//! let output = pipe.output().unwrap().stdout.as_slice();
+//! let output = pipe.output().unwrap().stdout();
 //!     
 //! assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
 //! ```
 
 use anyhow::{anyhow, Context, Result};
-use std::process::{Child, Command, Output, Stdio};
+use std::{process::{Child, Stdio}, ffi::OsStr};
 
 #[derive(Debug, Default)]
 /// A type representing an annonymous pipe
@@ -27,6 +27,66 @@ pub struct CommandPipe {
     pipeline: Vec<Command>,
     last_spawned: Option<Child>,
     output: Option<Output>,
+}
+
+#[derive(Debug)]
+pub struct Command(std::process::Command);
+
+impl From<std::process::Command> for Command {
+    fn from(command: std::process::Command) -> Self {
+        Command(command)
+    }
+}
+
+impl Command {
+
+    pub fn new<S>(command: S) -> Self 
+    where
+        S: AsRef<OsStr>
+    {
+        Command(std::process::Command::new(command))
+    }
+
+    pub fn arg<S>(&mut self, arg: S) -> &mut Self 
+    where
+        S: AsRef<OsStr>
+    {
+        self.0.arg(arg);
+        self
+    }
+    
+    pub fn args<S, I>(&mut self, args: I) -> &mut Self 
+    where 
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>
+    {
+        self.0.args(args);
+        self
+
+    }
+}
+
+#[derive(Debug)]
+pub struct Output(std::process::Output);
+
+impl From<std::process::Output> for Output {
+    fn from(command: std::process::Output) -> Self {
+        Output(command)
+    }
+}
+
+impl Output {
+    pub fn status_code(&self) -> Option<i32> {
+        self.0.status.code()
+    }
+
+    pub fn stdout(&self) -> &[u8] {
+        self.0.stdout.as_slice()
+    }
+
+    pub fn stderr(&self) -> &[u8] {
+        self.0.stderr.as_slice()
+    }
 }
 
 impl CommandPipe {
@@ -58,7 +118,10 @@ impl CommandPipe {
     /// let mut pipe = CommandPipe::new();
     /// pipe.add_command("ls");
     /// ```
-    pub fn add_command(&mut self, c: &str) -> &mut Self {
+    pub fn add_command<S>(&mut self, c: S) -> &mut Self 
+    where
+        S: AsRef<std::ffi::OsStr>
+    {
         let command = Command::new(c);
         self.pipeline.push(command);
 
@@ -76,7 +139,10 @@ impl CommandPipe {
     /// let mut pipe = CommandPipe::new();
     /// pipe.add_command("ls").arg("-la");
     /// ```
-    pub fn arg(&mut self, arg: &str) -> &mut Self {
+    pub fn arg<S>(&mut self, arg: S) -> &mut Self 
+    where
+        S: AsRef<std::ffi::OsStr>
+    {
         self.pipeline
             .last_mut()
             .expect("No Command in pipe to add args to.")
@@ -135,12 +201,12 @@ impl CommandPipe {
                 None => Stdio::null(),
             };
 
-            let mut child = command.stdin(stdin).stdout(Stdio::piped()).spawn()?;
+            let mut child = command.0.stdin(stdin).stdout(Stdio::piped()).spawn()?;
 
             child.wait().with_context(|| {
                 format!(
                     "Child process '{}' exited with error code.",
-                    command.get_program().to_string_lossy()
+                    command.0.get_program().to_string_lossy()
                 )
             })?;
 
@@ -166,7 +232,7 @@ impl CommandPipe {
     ///     .spawn()
     ///     .expect("Failed to spawn pipe.");
     ///     
-    /// let output = pipe.output().unwrap().stdout.as_slice();
+    /// let output = pipe.output().unwrap().stdout();
     ///     
     /// assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
     /// ```
@@ -177,7 +243,7 @@ impl CommandPipe {
                 if let Some(last_proc) = self.last_spawned.take() {
                     let output = last_proc.wait_with_output()?;
 
-                    self.output.replace(output);
+                    self.output.replace(Output::from(output));
                     self.output()
                 } else {
                     Err(anyhow!("No spawned process in pipeline"))
@@ -197,7 +263,7 @@ mod tests {
 
         pipe.add_command("ls").arg("-la").arg("~/Documents");
 
-        let args: Vec<&std::ffi::OsStr> = pipe.pipeline[0].get_args().collect();
+        let args: Vec<&std::ffi::OsStr> = pipe.pipeline[0].0.get_args().collect();
 
         assert_eq!(args, &["-la", "~/Documents"])
     }
@@ -208,7 +274,7 @@ mod tests {
 
         pipe.add_command("ls").args(vec!["-la", "~/Documents"]);
 
-        let args: Vec<&std::ffi::OsStr> = pipe.pipeline[0].get_args().collect();
+        let args: Vec<&std::ffi::OsStr> = pipe.pipeline[0].0.get_args().collect();
 
         assert_eq!(args, &["-la", "~/Documents"])
     }
@@ -225,7 +291,7 @@ mod tests {
             .spawn()
             .expect("Failed to spawn pipe.");
 
-        let output = pipe.output().unwrap().stdout.as_slice();
+        let output = pipe.output().unwrap().stdout();
 
         assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
     }
