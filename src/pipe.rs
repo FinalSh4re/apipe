@@ -1,25 +1,39 @@
-use crate::cmd;
-use crate::error::APipeError;
-use crate::output;
-use std::ops;
-use std::process::{Child, Stdio};
+use crate::{cmd::Command, output::Output, error::APipeError};
+use std::{ops, process::{Child, Stdio}};
 
 type Result<T> = std::result::Result<T, APipeError>;
 
 #[derive(Debug, Default)]
 /// A type representing an annonymous pipe
 pub struct CommandPipe {
-    pub(crate) pipeline: Vec<cmd::Command>,
+    pub(crate) pipeline: Vec<Command>,
     last_spawned: Option<Child>,
-    output: Option<output::Output>,
+    output: Option<Output>,
 }
 
-impl ops::BitOr<cmd::Command> for CommandPipe {
+impl ops::BitOr<Command> for CommandPipe {
     type Output = CommandPipe;
 
-    fn bitor(mut self, rhs: cmd::Command) -> Self {
+    fn bitor(mut self, rhs: Command) -> Self {
         self.pipeline.push(rhs);
         self
+    }
+}
+
+impl TryFrom<&str> for CommandPipe {
+    type Error = APipeError;
+
+    fn try_from(value: &str) -> Result<Self> {
+        let mut pipe = CommandPipe::new();
+        
+        for cmd in value.split_terminator("|") {
+            match Command::parse_str(cmd) {
+                Ok(c) => pipe.pipeline.push(c),
+                Err(_) => return Err(APipeError::InvalidPipe)
+            }
+        }
+        
+        Ok(pipe)
     }
 }
 
@@ -56,7 +70,7 @@ impl CommandPipe {
     where
         S: AsRef<std::ffi::OsStr>,
     {
-        let command = cmd::Command::new(c);
+        let command = Command::new(c);
         self.pipeline.push(command);
 
         self
@@ -147,7 +161,12 @@ impl CommandPipe {
         Ok(())
     }
 
-    /// Returns the output of the pipe.
+    pub fn spawn_with_output(&mut self) -> Result<&Output> {
+        self.spawn()?;
+        self.output()
+    }
+
+    /// Returns the [`Output`] of the pipe.
     ///
     /// ## Example
     ///
@@ -167,7 +186,7 @@ impl CommandPipe {
     ///     
     /// assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
     /// ```
-    pub fn output(&mut self) -> Result<&output::Output> {
+    pub fn output(&mut self) -> Result<&Output> {
         match self.output {
             Some(_) => Ok(self.output.as_ref().unwrap()),
             None => {
@@ -176,7 +195,7 @@ impl CommandPipe {
                         .wait_with_output()
                         .map_err(APipeError::TerminatedChildCommand)?;
 
-                    self.output.replace(output::Output::from(output));
+                    self.output.replace(Output::from(output));
                     self.output()
                 } else {
                     Err(APipeError::EmptyPipe)
@@ -186,10 +205,13 @@ impl CommandPipe {
     }
 }
 
+#[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_arg() {
-        let mut pipe = super::CommandPipe::new();
+        let mut pipe = CommandPipe::new();
 
         pipe.add_command("ls").arg("-la").arg("~/Documents");
 
@@ -200,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_args() {
-        let mut pipe = super::CommandPipe::new();
+        let mut pipe = CommandPipe::new();
 
         pipe.add_command("ls").args(vec!["-la", "~/Documents"]);
 
@@ -211,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_pipe() {
-        let mut pipe = super::CommandPipe::new();
+        let mut pipe = CommandPipe::new();
 
         pipe.add_command("echo")
             .arg("This is a test.")
@@ -222,6 +244,37 @@ mod tests {
             .expect("Failed to spawn pipe.");
 
         let output = pipe.output().unwrap().stdout();
+
+        assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+    }
+
+    #[test]
+    fn test_spawn_with_output() {
+        let mut pipe = CommandPipe::new();
+
+        pipe.add_command("echo")
+            .arg("This is a test.")
+            .add_command("grep")
+            .arg("-Eo")
+            .arg(r"\w\w\sa[^.]*");
+
+        let output = pipe.spawn_with_output().unwrap().stdout();
+
+        assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+    }
+
+    #[test]
+    fn test_overload() {
+        let mut pipe = CommandPipe::new();
+
+        pipe = pipe | Command::new("grep");
+        assert_eq!(pipe.pipeline[0].0.get_program(), "grep");
+    }
+
+    #[test]
+    fn test_try_from() {
+        let mut pipe = CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#).unwrap();
+        let output = pipe.spawn_with_output().unwrap().stdout();
 
         assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
     }

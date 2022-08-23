@@ -5,6 +5,9 @@ pub enum APipeError {
     #[error("Tried to parse empty command string: {0}.")]
     MissingCommand(String),
 
+    #[error("Invalid pipe.")]
+    InvalidPipe,
+
     #[error("Previous command had not output to be captured.")]
     NoStdout,
 
