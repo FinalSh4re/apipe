@@ -1,9 +1,10 @@
-use std::process::{Child, Stdio};
-use std::ops;
-use anyhow::{Result, Context, anyhow};
 use crate::cmd;
+use crate::error::APipeError;
 use crate::output;
+use std::ops;
+use std::process::{Child, Stdio};
 
+type Result<T> = std::result::Result<T, APipeError>;
 
 #[derive(Debug, Default)]
 /// A type representing an annonymous pipe
@@ -51,9 +52,9 @@ impl CommandPipe {
     /// let mut pipe = CommandPipe::new();
     /// pipe.add_command("ls");
     /// ```
-    pub fn add_command<S>(&mut self, c: S) -> &mut Self 
+    pub fn add_command<S>(&mut self, c: S) -> &mut Self
     where
-        S: AsRef<std::ffi::OsStr>
+        S: AsRef<std::ffi::OsStr>,
     {
         let command = cmd::Command::new(c);
         self.pipeline.push(command);
@@ -72,9 +73,9 @@ impl CommandPipe {
     /// let mut pipe = CommandPipe::new();
     /// pipe.add_command("ls").arg("-la");
     /// ```
-    pub fn arg<S>(&mut self, arg: S) -> &mut Self 
+    pub fn arg<S>(&mut self, arg: S) -> &mut Self
     where
-        S: AsRef<std::ffi::OsStr>
+        S: AsRef<std::ffi::OsStr>,
     {
         self.pipeline
             .last_mut()
@@ -124,24 +125,21 @@ impl CommandPipe {
         for command in self.pipeline.iter_mut() {
             let stdin = match self.last_spawned.take() {
                 Some(mut proc) => {
-                    let stdout = proc
-                        .stdout
-                        .take()
-                        .context("Failed to get stdout of previous process.")?;
+                    let stdout = proc.stdout.take().ok_or(APipeError::NoStdout)?;
 
                     Stdio::from(stdout)
                 }
                 None => Stdio::null(),
             };
 
-            let mut child = command.0.stdin(stdin).stdout(Stdio::piped()).spawn()?;
+            let mut child = command
+                .0
+                .stdin(stdin)
+                .stdout(Stdio::piped())
+                .spawn()
+                .map_err(APipeError::FailedExecution)?;
 
-            child.wait().with_context(|| {
-                format!(
-                    "Child process '{}' exited with error code.",
-                    command.0.get_program().to_string_lossy()
-                )
-            })?;
+            child.wait().map_err(APipeError::TerminatedChildCommand)?;
 
             self.last_spawned.replace(child);
         }
@@ -174,18 +172,19 @@ impl CommandPipe {
             Some(_) => Ok(self.output.as_ref().unwrap()),
             None => {
                 if let Some(last_proc) = self.last_spawned.take() {
-                    let output = last_proc.wait_with_output()?;
+                    let output = last_proc
+                        .wait_with_output()
+                        .map_err(APipeError::TerminatedChildCommand)?;
 
                     self.output.replace(output::Output::from(output));
                     self.output()
                 } else {
-                    Err(anyhow!("No spawned process in pipeline"))
+                    Err(APipeError::EmptyPipe)
                 }
             }
         }
     }
 }
-
 
 mod tests {
     #[test]

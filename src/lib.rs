@@ -19,10 +19,9 @@
 //! ```
 
 pub mod cmd;
-pub mod pipe;
+pub mod error;
 pub mod output;
+pub mod pipe;
 
 pub use cmd::Command;
 pub use pipe::CommandPipe;
-
-
