@@ -18,8 +18,12 @@
 //! assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
 //! ```
 
+use lazy_static::lazy_static;
+use regex::Regex;
 use anyhow::{anyhow, Context, Result};
 use std::{process::{Child, Stdio}, ffi::OsStr};
+
+
 
 #[derive(Debug, Default)]
 /// A type representing an annonymous pipe
@@ -37,6 +41,7 @@ impl From<std::process::Command> for Command {
         Command(command)
     }
 }
+
 
 impl Command {
 
@@ -62,6 +67,24 @@ impl Command {
     {
         self.0.args(args);
         self
+
+    }
+
+    pub fn from_str(c: &str) -> Result<Self> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r#"([^\s"']+)|("[^"]*?")|('[^']*?')"#).unwrap();
+        }
+        
+        let matches = RE.captures_iter(c);
+        let cmd_parts: Vec<&str> = matches.map(|x| x.get(0).unwrap().as_str()).collect();
+
+        let (cmd, args) = cmd_parts.split_first().context("Invalid command string: No command found.")?;
+
+        let mut command = Command::new(cmd);
+        
+        command.args(args);
+        
+        Ok(command)
 
     }
 }
