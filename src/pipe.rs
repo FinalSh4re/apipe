@@ -1,5 +1,8 @@
-use crate::{cmd::Command, output::Output, error::APipeError};
-use std::{ops, process::{Child, Stdio}};
+use crate::{cmd::Command, error::APipeError, output::Output};
+use std::{
+    ops,
+    process::{Child, Stdio},
+};
 
 type Result<T> = std::result::Result<T, APipeError>;
 
@@ -25,14 +28,14 @@ impl TryFrom<&str> for CommandPipe {
 
     fn try_from(value: &str) -> Result<Self> {
         let mut pipe = CommandPipe::new();
-        
+
         for cmd in value.split_terminator("|") {
             match Command::parse_str(cmd) {
                 Ok(c) => pipe.pipeline.push(c),
-                Err(_) => return Err(APipeError::InvalidPipe)
+                Err(_) => return Err(APipeError::InvalidPipe),
             }
         }
-        
+
         Ok(pipe)
     }
 }
@@ -273,7 +276,8 @@ mod tests {
 
     #[test]
     fn test_try_from() {
-        let mut pipe = CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#).unwrap();
+        let mut pipe =
+            CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#).unwrap();
         let output = pipe.spawn_with_output().unwrap().stdout();
 
         assert_eq!(&String::from_utf8_lossy(output), "is a test\n");

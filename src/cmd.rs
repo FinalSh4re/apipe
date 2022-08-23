@@ -68,9 +68,8 @@ impl Command {
     /// ## Example
     ///
     /// ```
-    /// # use apipe::cmd::Command;
-    /// # use anyhow::Result;
-    /// # fn main() -> Result<()> {
+    /// # use apipe::{cmd::Command, error::APipeError};
+    /// # fn main() -> Result<(), APipeError> {
     ///     let cmd = Command::parse_str(r#"echo "This is a test.""#)?;
     /// # Ok(())
     /// # }
