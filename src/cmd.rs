@@ -1,9 +1,7 @@
-use crate::error::APipeError;
-use crate::pipe::CommandPipe;
+use crate::{error::APipeError, pipe::CommandPipe};
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::ffi::OsStr;
-use std::ops;
+use std::{ffi::OsStr, ops};
 
 type Result<T> = std::result::Result<T, APipeError>;
 
