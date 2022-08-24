@@ -1,5 +1,5 @@
 # apipe
- A simple annonymous UNIX pipe type.
+ A simple anonymous UNIX pipe type.
 
  ## Usage
 
