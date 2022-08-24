@@ -7,7 +7,7 @@ use std::{
 type Result<T> = std::result::Result<T, APipeError>;
 
 #[derive(Debug, Default)]
-/// A type representing an annonymous pipe
+/// A type representing an anonymous pipe
 pub struct CommandPipe {
     pub(crate) pipeline: Vec<Command>,
     last_spawned: Option<Child>,
@@ -164,6 +164,20 @@ impl CommandPipe {
         Ok(())
     }
 
+    /// Spawns all commands in the pipe and returns the [`Output`].
+    /// 
+    /// ## Example
+    /// 
+    /// ```
+    /// # use apipe::CommandPipe;
+    /// # fn main() -> Result<(), apipe::error::APipeError> {
+    /// let mut pipe = CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#)?;
+    /// let output = pipe.spawn_with_output()?.stdout();
+    /// 
+    /// assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn spawn_with_output(&mut self) -> Result<&Output> {
         self.spawn()?;
         self.output()

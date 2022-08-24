@@ -8,7 +8,6 @@
 //!
 //! ```
 //! # fn main() -> Result<(), apipe::error::APipeError> {
-//!
 //! use apipe::CommandPipe;
 //!
 //! let mut pipe = CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#)?;
@@ -28,10 +27,10 @@
 //!
 //! ```
 //! # fn main() -> Result<(), apipe::error::APipeError> {
-//!
 //! use apipe::Command;
 //!
-//! let mut pipe = Command::parse_str(r#"echo "This is a test.""#)? | Command::parse_str(r#"grep -Eo \w\w\sa[^.]*"#)?;
+//! let mut pipe = Command::parse_str(r#"echo "This is a test.""#)?
+//!              | Command::parse_str(r#"grep -Eo \w\w\sa[^.]*"#)?;
 //!                  
 //! let output = pipe.spawn_with_output()?.stdout();
 //!     

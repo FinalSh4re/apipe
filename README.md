@@ -16,7 +16,6 @@
                   .stdout();
      
  assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
-
  ```
 
  ### Pipe Command Objects

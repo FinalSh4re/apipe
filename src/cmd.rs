@@ -12,8 +12,11 @@ type Result<T> = std::result::Result<T, APipeError>;
 /// ```
 /// # use apipe::{Command, error::APipeError};
 /// # fn main() -> Result<(), APipeError> {
-/// // Either use by "piping" one Command type to another
-/// let pipe = Command::parse_str(r#"echo "This is a test.""#)? | Command::parse_str(r#"grep -Eo \w\w\sa[^.]*"#)?;
+/// let cmd = Command::parse_str(r#"grep -Eo \w\w\sa[^.]*"#)?;
+///
+/// // or
+///
+/// let cmd = Command::new("grep").args(&["-Eo", r"\w\w\sa[^.]*"]);
 /// # Ok(())
 /// # }
 /// ```
@@ -39,6 +42,14 @@ impl ops::BitOr<Command> for Command {
 }
 
 impl Command {
+    /// Creates a new command instance.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use apipe::Command;
+    /// let cmd = Command::new("ls");
+    /// ```
     pub fn new<S>(command: S) -> Self
     where
         S: AsRef<OsStr>,
@@ -46,6 +57,14 @@ impl Command {
         Command(std::process::Command::new(command))
     }
 
+    /// Adds a single argument to an existing Command instance.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use apipe::Command;
+    /// let cmd = Command::new("ls").arg("-la");
+    /// ```
     pub fn arg<S>(&mut self, arg: S) -> &mut Self
     where
         S: AsRef<OsStr>,
@@ -54,6 +73,14 @@ impl Command {
         self
     }
 
+    /// Adds a multiple arguments to an existing Command instance.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use apipe::Command;
+    /// let cmd = Command::new("grep").args(&["-Eo", r"\w\w\sa[^.]*"]);
+    /// ```
     pub fn args<S, I>(&mut self, args: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
