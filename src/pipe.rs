@@ -32,7 +32,7 @@ impl TryFrom<&str> for CommandPipe {
         for cmd in value.split_terminator("|") {
             match Command::parse_str(cmd) {
                 Ok(c) => pipe.pipeline.push(c),
-                Err(_) => return Err(APipeError::InvalidPipe),
+                Err(e) => return Err(e),
             }
         }
 
@@ -140,23 +140,20 @@ impl CommandPipe {
     /// ```
     pub fn spawn(&mut self) -> Result<()> {
         for command in self.pipeline.iter_mut() {
-            let stdin = match self.last_spawned.take() {
-                Some(mut proc) => {
-                    let stdout = proc.stdout.take().ok_or(APipeError::NoStdout)?;
-
-                    Stdio::from(stdout)
-                }
-                None => Stdio::null(),
-            };
+            let stdin = self.last_spawned.take().map_or(Stdio::null(), |mut std| {
+                std.stdout.take().map_or(Stdio::null(), Stdio::from)
+            });
 
             let mut child = command
                 .0
                 .stdin(stdin)
                 .stdout(Stdio::piped())
                 .spawn()
-                .map_err(APipeError::FailedExecution)?;
+                .map_err(|e| APipeError::ChildProcess(e, "Failed to spawn child command"))?;
 
-            child.wait().map_err(APipeError::TerminatedChildCommand)?;
+            child.wait().map_err(|e| {
+                APipeError::ChildProcess(e, "Child process exited with error code.")
+            })?;
 
             self.last_spawned.replace(child);
         }
@@ -165,15 +162,15 @@ impl CommandPipe {
     }
 
     /// Spawns all commands in the pipe and returns the [`Output`].
-    /// 
+    ///
     /// ## Example
-    /// 
+    ///
     /// ```
     /// # use apipe::CommandPipe;
     /// # fn main() -> Result<(), apipe::error::APipeError> {
     /// let mut pipe = CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#)?;
     /// let output = pipe.spawn_with_output()?.stdout();
-    /// 
+    ///
     /// assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
     /// # Ok(())
     /// # }
@@ -208,14 +205,14 @@ impl CommandPipe {
             Some(_) => Ok(self.output.as_ref().unwrap()),
             None => {
                 if let Some(last_proc) = self.last_spawned.take() {
-                    let output = last_proc
-                        .wait_with_output()
-                        .map_err(APipeError::TerminatedChildCommand)?;
+                    let output = last_proc.wait_with_output().map_err(|e| {
+                        APipeError::ChildProcess(e, "Child process exited with error code.")
+                    })?;
 
                     self.output.replace(Output::from(output));
                     self.output()
                 } else {
-                    Err(APipeError::EmptyPipe)
+                    Err(APipeError::NoRunningProcesses)
                 }
             }
         }

@@ -111,7 +111,7 @@ impl Command {
 
         let (&cmd, args) = cmd_parts
             .split_first()
-            .ok_or_else(|| APipeError::MissingCommand(c.to_owned()))?;
+            .ok_or_else(|| APipeError::Parser(c.to_owned()))?;
 
         let mut command = Command::new(cmd);
 

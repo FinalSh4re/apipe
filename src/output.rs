@@ -1,7 +1,7 @@
 use std::process;
 
 /// Provides a thin wrapper around [std::process::Output]
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Output(process::Output);
 
 impl From<process::Output> for Output {

@@ -1,22 +1,30 @@
-use thiserror::Error;
+use std::error;
+use std::fmt::Display;
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum APipeError {
-    #[error("Tried to parse empty command string: {0}.")]
-    MissingCommand(String),
+    Parser(String),
+    ChildProcess(std::io::Error, &'static str),
+    NoRunningProcesses,
+}
 
-    #[error("Invalid pipe.")]
-    InvalidPipe,
+impl Display for APipeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            APipeError::Parser(ref cmd) => {
+                write!(f, "Tried to parse empty command string: {}", cmd)
+            }
+            APipeError::ChildProcess(_, s) => write!(f, "{}", s),
+            APipeError::NoRunningProcesses => write!(f, "No running processes."),
+        }
+    }
+}
 
-    #[error("Previous command had not output to be captured.")]
-    NoStdout,
-
-    #[error("Failed to spawn command: {0}.")]
-    FailedExecution(std::io::Error),
-
-    #[error("Child process got terminated: {0}.")]
-    TerminatedChildCommand(std::io::Error),
-
-    #[error("Nothing to spawn in pipeline.")]
-    EmptyPipe,
+impl error::Error for APipeError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match *self {
+            APipeError::ChildProcess(ref e, _) => Some(e),
+            _ => None,
+        }
+    }
 }
