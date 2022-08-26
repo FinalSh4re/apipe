@@ -15,7 +15,7 @@
 //! let output = pipe.spawn_with_output()?
 //!                  .stdout();
 //!     
-//! assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+//! assert_eq!(output, "is a test\n".as_bytes());
 //!
 //! # Ok(())
 //! # }
@@ -34,7 +34,7 @@
 //!                  
 //! let output = pipe.spawn_with_output()?.stdout();
 //!     
-//! assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+//! assert_eq!(output, "is a test\n".as_bytes());
 //!
 //! # Ok(())
 //! # }
@@ -67,7 +67,7 @@
 //! let output = pipe.output()?
 //!                  .stdout();
 //!     
-//! assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+//! assert_eq!(output, "is a test\n".as_bytes());
 //!
 //! # Ok(())
 //! # }

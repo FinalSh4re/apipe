@@ -1,5 +1,6 @@
 use crate::{cmd::Command, error::APipeError, output::Output};
 use std::{
+    ffi::OsStr,
     ops,
     process::{Child, Stdio},
 };
@@ -71,9 +72,9 @@ impl CommandPipe {
     /// ```
     pub fn add_command<S>(&mut self, c: S) -> &mut Self
     where
-        S: AsRef<std::ffi::OsStr>,
+        S: AsRef<OsStr>,
     {
-        let command = Command::new(c);
+        let command = c.into();
         self.pipeline.push(command);
 
         self
@@ -92,7 +93,7 @@ impl CommandPipe {
     /// ```
     pub fn arg<S>(&mut self, arg: S) -> &mut Self
     where
-        S: AsRef<std::ffi::OsStr>,
+        S: AsRef<OsStr>,
     {
         self.pipeline
             .last_mut()
@@ -115,7 +116,7 @@ impl CommandPipe {
     pub fn args<I, S>(&mut self, args: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
-        S: AsRef<std::ffi::OsStr>,
+        S: AsRef<OsStr>,
     {
         self.pipeline
             .last_mut()
@@ -171,7 +172,7 @@ impl CommandPipe {
     /// let mut pipe = CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#)?;
     /// let output = pipe.spawn_with_output()?.stdout();
     ///
-    /// assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+    /// assert_eq!(output, "is a test\n".as_bytes());
     /// # Ok(())
     /// # }
     /// ```
@@ -198,7 +199,7 @@ impl CommandPipe {
     ///     
     /// let output = pipe.output().unwrap().stdout();
     ///     
-    /// assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+    /// assert_eq!(output, "is a test\n".as_bytes());
     /// ```
     pub fn output(&mut self) -> Result<&Output> {
         match self.output {
@@ -229,7 +230,7 @@ mod tests {
 
         pipe.add_command("ls").arg("-la").arg("~/Documents");
 
-        let args: Vec<&std::ffi::OsStr> = pipe.pipeline[0].0.get_args().collect();
+        let args: Vec<&OsStr> = pipe.pipeline[0].0.get_args().collect();
 
         assert_eq!(args, &["-la", "~/Documents"])
     }
@@ -240,7 +241,7 @@ mod tests {
 
         pipe.add_command("ls").args(vec!["-la", "~/Documents"]);
 
-        let args: Vec<&std::ffi::OsStr> = pipe.pipeline[0].0.get_args().collect();
+        let args: Vec<&OsStr> = pipe.pipeline[0].0.get_args().collect();
 
         assert_eq!(args, &["-la", "~/Documents"])
     }
@@ -259,7 +260,7 @@ mod tests {
 
         let output = pipe.output().unwrap().stdout();
 
-        assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+        assert_eq!(output, "is a test\n".as_bytes());
     }
 
     #[test]
@@ -274,7 +275,7 @@ mod tests {
 
         let output = pipe.spawn_with_output().unwrap().stdout();
 
-        assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+        assert_eq!(output, "is a test\n".as_bytes());
     }
 
     #[test]
@@ -291,6 +292,6 @@ mod tests {
             CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#).unwrap();
         let output = pipe.spawn_with_output().unwrap().stdout();
 
-        assert_eq!(&String::from_utf8_lossy(output), "is a test\n");
+        assert_eq!(output, "is a test\n".as_bytes());
     }
 }

@@ -23,9 +23,12 @@ type Result<T> = std::result::Result<T, APipeError>;
 #[derive(Debug)]
 pub struct Command(pub(crate) std::process::Command);
 
-impl From<std::process::Command> for Command {
-    fn from(command: std::process::Command) -> Self {
-        Command(command)
+impl<T> From<T> for Command
+where
+    T: AsRef<OsStr>,
+{
+    fn from(s: T) -> Self {
+        Command(std::process::Command::new(s))
     }
 }
 
