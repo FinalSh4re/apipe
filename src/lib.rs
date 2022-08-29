@@ -12,18 +12,18 @@
 //!
 //! let mut pipe = CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#)?;
 //!
-//! let output = pipe.spawn_with_output()?
-//!                  .stdout();
+//! let output = pipe.spawn_with_output()?;
 //!     
-//! assert_eq!(output, "is a test\n".as_bytes());
+//! assert_eq!(output.stdout(), "is a test\n".as_bytes());
 //!
 //! # Ok(())
 //! # }
 //! ```
+//! This requires the `parser` feature to be enabled.
 //!
 //! ### Pipe Command Objects
 //!
-//! Another way is to create the individual Commands and then contruct a pipe from them:
+//! Create the individual Commands and then contruct a pipe from them:
 //!
 //! ```
 //! # fn main() -> Result<(), apipe::error::APipeError> {
@@ -31,10 +31,15 @@
 //!
 //! let mut pipe = Command::parse_str(r#"echo "This is a test.""#)?
 //!              | Command::parse_str(r#"grep -Eo \w\w\sa[^.]*"#)?;
+//!
+//! // or:
+//!
+//! let mut pipe = Command::new("echo").arg("This is a test.")
+//!              | Command::new("grep").args(&["-Eo", r"\w\w\sa[^.]*"]);
 //!                  
-//! let output = pipe.spawn_with_output()?.stdout();
+//! let output = pipe.spawn_with_output()?;
 //!     
-//! assert_eq!(output, "is a test\n".as_bytes());
+//! assert_eq!(output.stdout(), "is a test\n".as_bytes());
 //!
 //! # Ok(())
 //! # }
@@ -49,26 +54,20 @@
 //!
 //! ### Builder
 //!
-//! Finally, there is a conventional builder syntax:
+//! There is also a conventional builder syntax:
 //!
 //! ```
 //! # fn main() -> Result<(), apipe::error::APipeError> {
 //! use apipe::CommandPipe;
 //!
-//! let mut pipe = apipe::CommandPipe::new();
-//!
-//! pipe.add_command("echo")
+//! let output = apipe::CommandPipe::new()
+//!     .add_command("echo")
 //!     .arg("This is a test.")
 //!     .add_command("grep")
-//!     .arg("-Eo")
-//!     .arg(r"\w\w\sa[^.]*")
-//!     .spawn()?;
-//!     
-//! let output = pipe.output()?
-//!                  .stdout();
-//!     
-//! assert_eq!(output, "is a test\n".as_bytes());
+//!     .args(&["-Eo", r"\w\w\sa[^.]*"])
+//!     .spawn_with_output()?;
 //!
+//! assert_eq!(output.stdout(), "is a test\n".as_bytes());
 //! # Ok(())
 //! # }
 //! ```

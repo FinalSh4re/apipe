@@ -1,3 +1,5 @@
+//! Output type exposing the stdout, stderr and exitcode of an executed pipe.
+
 use std::process;
 
 /// Provides a thin wrapper around [std::process::Output]

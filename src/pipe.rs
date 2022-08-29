@@ -1,3 +1,5 @@
+//! An anonymous pipe.
+
 use crate::{cmd::Command, error::APipeError, output::Output};
 use std::{
     ffi::OsStr,
@@ -12,7 +14,6 @@ type Result<T> = std::result::Result<T, APipeError>;
 pub struct CommandPipe {
     pub(crate) pipeline: Vec<Command>,
     last_spawned: Option<Child>,
-    output: Option<Output>,
 }
 
 impl ops::BitOr<Command> for CommandPipe {
@@ -24,6 +25,7 @@ impl ops::BitOr<Command> for CommandPipe {
     }
 }
 
+#[cfg(feature = "parser")]
 impl TryFrom<&str> for CommandPipe {
     type Error = APipeError;
 
@@ -36,7 +38,6 @@ impl TryFrom<&str> for CommandPipe {
                 Err(e) => return Err(e),
             }
         }
-
         Ok(pipe)
     }
 }
@@ -54,7 +55,6 @@ impl CommandPipe {
         CommandPipe {
             pipeline: Vec::new(),
             last_spawned: None,
-            output: None,
         }
     }
 
@@ -95,10 +95,12 @@ impl CommandPipe {
     where
         S: AsRef<OsStr>,
     {
-        self.pipeline
-            .last_mut()
-            .expect("No Command in pipe to add args to.")
-            .arg(arg);
+        let command = self
+            .pipeline
+            .pop()
+            .expect("No Command in pipe to add args to.");
+
+        self.pipeline.push(command.arg(arg));
         self
     }
 
@@ -118,10 +120,12 @@ impl CommandPipe {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        self.pipeline
-            .last_mut()
-            .expect("No Command in pipe to add args to.")
-            .args(args);
+        let command = self
+            .pipeline
+            .pop()
+            .expect("No Command in pipe to add args to.");
+
+        self.pipeline.push(command.args(args));
         self
     }
 
@@ -131,6 +135,7 @@ impl CommandPipe {
     ///
     /// ```
     /// # use apipe::CommandPipe;
+    /// # fn main() -> Result<(), apipe::error::APipeError> {
     /// let mut pipe = CommandPipe::new();
     /// pipe.add_command("ls")
     ///     .args(vec!["-la", "~/Documents"])
@@ -138,6 +143,8 @@ impl CommandPipe {
     ///     .arg("My_Dir")
     ///     .spawn()
     ///     .expect("Failed to spawn pipe.");
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn spawn(&mut self) -> Result<()> {
         for command in self.pipeline.iter_mut() {
@@ -169,14 +176,19 @@ impl CommandPipe {
     /// ```
     /// # use apipe::CommandPipe;
     /// # fn main() -> Result<(), apipe::error::APipeError> {
-    /// let mut pipe = CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#)?;
-    /// let output = pipe.spawn_with_output()?.stdout();
+    /// let output = CommandPipe::new()
+    ///     .add_command("echo")
+    ///     .arg("This is a test.")
+    ///     .add_command("grep")
+    ///     .arg("-Eo")
+    ///     .arg(r"\w\w\sa[^.]*")
+    ///     .spawn_with_output()?;
     ///
-    /// assert_eq!(output, "is a test\n".as_bytes());
+    /// assert_eq!(output.stdout(), "is a test\n".as_bytes());
     /// # Ok(())
     /// # }
     /// ```
-    pub fn spawn_with_output(&mut self) -> Result<&Output> {
+    pub fn spawn_with_output(&mut self) -> Result<Output> {
         self.spawn()?;
         self.output()
     }
@@ -197,25 +209,18 @@ impl CommandPipe {
     ///     .spawn()
     ///     .expect("Failed to spawn pipe.");
     ///     
-    /// let output = pipe.output().unwrap().stdout();
+    /// let output = pipe.output().unwrap();
     ///     
-    /// assert_eq!(output, "is a test\n".as_bytes());
+    /// assert_eq!(output.stdout(), "is a test\n".as_bytes());
     /// ```
-    pub fn output(&mut self) -> Result<&Output> {
-        match self.output {
-            Some(_) => Ok(self.output.as_ref().unwrap()),
-            None => {
-                if let Some(last_proc) = self.last_spawned.take() {
-                    let output = last_proc.wait_with_output().map_err(|e| {
-                        APipeError::ChildProcess(e, "Child process exited with error code.")
-                    })?;
-
-                    self.output.replace(Output::from(output));
-                    self.output()
-                } else {
-                    Err(APipeError::NoRunningProcesses)
-                }
-            }
+    pub fn output(&mut self) -> Result<Output> {
+        if let Some(last_proc) = self.last_spawned.take() {
+            let output = last_proc.wait_with_output().map_err(|e| {
+                APipeError::ChildProcess(e, "Child process exited with error code.")
+            })?;
+            return Ok(Output::from(output));
+        } else {
+            Err(APipeError::NoRunningProcesses)
         }
     }
 }
@@ -258,24 +263,30 @@ mod tests {
             .spawn()
             .expect("Failed to spawn pipe.");
 
-        let output = pipe.output().unwrap().stdout();
+        let output = pipe.output().unwrap();
 
-        assert_eq!(output, "is a test\n".as_bytes());
+        assert_eq!(output.stdout(), "is a test\n".as_bytes());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_add_arg_without_command() {
+        let mut pipe = CommandPipe::new();
+        pipe.arg("ls");
     }
 
     #[test]
     fn test_spawn_with_output() {
-        let mut pipe = CommandPipe::new();
-
-        pipe.add_command("echo")
+        let output = CommandPipe::new()
+            .add_command("echo")
             .arg("This is a test.")
             .add_command("grep")
             .arg("-Eo")
-            .arg(r"\w\w\sa[^.]*");
+            .arg(r"\w\w\sa[^.]*")
+            .spawn_with_output()
+            .unwrap();
 
-        let output = pipe.spawn_with_output().unwrap().stdout();
-
-        assert_eq!(output, "is a test\n".as_bytes());
+        assert_eq!(output.stdout(), "is a test\n".as_bytes());
     }
 
     #[test]
@@ -283,15 +294,53 @@ mod tests {
         let mut pipe = CommandPipe::new();
 
         pipe = pipe | Command::new("grep");
+
         assert_eq!(pipe.pipeline[0].0.get_program(), "grep");
+
+        let output = (Command::new("echo").arg("This is a test.")
+            | Command::new("grep").args(&["-Eo", r"\w\w\sa[^.]*"]))
+        .spawn_with_output()
+        .unwrap();
+
+        assert_eq!(output.stdout(), "is a test\n".as_bytes());
     }
 
+    #[cfg(feature = "parser")]
     #[test]
     fn test_try_from() {
         let mut pipe =
             CommandPipe::try_from(r#"echo "This is a test." | grep -Eo \w\w\sa[^.]*"#).unwrap();
-        let output = pipe.spawn_with_output().unwrap().stdout();
+        let output = pipe.spawn_with_output().unwrap();
 
-        assert_eq!(output, "is a test\n".as_bytes());
+        assert_eq!(output.stdout(), "is a test\n".as_bytes());
+    }
+
+    #[cfg(feature = "parser")]
+    #[test]
+    fn test_try_from_command() {
+        let mut pipe = CommandPipe::try_from(r#"echo "This is a test."#).unwrap();
+        let output = pipe.spawn_with_output().unwrap();
+
+        assert_eq!(output.stdout(), "This is a test.\n".as_bytes());
+    }
+
+    #[cfg(feature = "parser")]
+    #[test]
+    fn test_try_from_empty_str() {
+        let pipe = CommandPipe::try_from("");
+
+        if let Err(_) = pipe {
+            panic!("Pipe should be empty!")
+        };
+    }
+
+    #[cfg(feature = "parser")]
+    #[test]
+    fn test_try_from_invalid_pipe() {
+        let pipe = CommandPipe::try_from(" | ");
+
+        if let Ok(_) = pipe {
+            panic!("Shouldn't be able to parse invalid pipe!")
+        };
     }
 }

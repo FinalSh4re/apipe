@@ -1,9 +1,15 @@
-use crate::{error::APipeError, pipe::CommandPipe};
-use lazy_static::lazy_static;
-use regex::Regex;
+//! Abstraction over an external command.
+
+use crate::pipe::CommandPipe;
 use std::{ffi::OsStr, ops};
 
-type Result<T> = std::result::Result<T, APipeError>;
+#[cfg(feature = "parser")]
+use lazy_static::lazy_static;
+#[cfg(feature = "parser")]
+use regex::Regex;
+
+#[cfg(feature = "parser")]
+type Result<T> = std::result::Result<T, crate::error::APipeError>;
 
 /// Abstraction of an external command.
 ///
@@ -12,7 +18,7 @@ type Result<T> = std::result::Result<T, APipeError>;
 /// ```
 /// # use apipe::{Command, error::APipeError};
 /// # fn main() -> Result<(), APipeError> {
-/// let cmd = Command::parse_str(r#"grep -Eo \w\w\sa[^.]*"#)?;
+/// let cmd = Command::parse_str(r#"grep -Eo "\w\w\sa[^.]*""#)?;
 ///
 /// // or
 ///
@@ -68,7 +74,7 @@ impl Command {
     /// # use apipe::Command;
     /// let cmd = Command::new("ls").arg("-la");
     /// ```
-    pub fn arg<S>(&mut self, arg: S) -> &mut Self
+    pub fn arg<S>(mut self, arg: S) -> Self
     where
         S: AsRef<OsStr>,
     {
@@ -84,7 +90,7 @@ impl Command {
     /// # use apipe::Command;
     /// let cmd = Command::new("grep").args(&["-Eo", r"\w\w\sa[^.]*"]);
     /// ```
-    pub fn args<S, I>(&mut self, args: I) -> &mut Self
+    pub fn args<S, I>(mut self, args: I) -> Self
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -93,6 +99,7 @@ impl Command {
         self
     }
 
+    #[cfg(feature = "parser")]
     /// Constructs a Command from a string including the program and its args.
     ///
     /// ## Example
@@ -100,7 +107,7 @@ impl Command {
     /// ```
     /// # use apipe::{cmd::Command, error::APipeError};
     /// # fn main() -> Result<(), APipeError> {
-    ///     let cmd = Command::parse_str(r#"echo "This is a test.""#)?;
+    ///     let cmd = Command::parse_str(r#"grep -Eo "\w\w\sa[^.]*""#)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -114,34 +121,38 @@ impl Command {
 
         let (&cmd, args) = cmd_parts
             .split_first()
-            .ok_or_else(|| APipeError::Parser(c.to_owned()))?;
+            .ok_or_else(|| crate::error::APipeError::Parser(c.to_owned()))?;
 
-        let mut command = Command::new(cmd);
-
-        command.args(args);
+        let command = Command::new(cmd).args(args);
 
         Ok(command)
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "parser"))]
 mod tests {
     use super::*;
 
     #[test]
     fn test_literal_pipe() -> Result<()> {
         let pipe = Command::parse_str(r#"echo "This is a test.""#)?
-            | Command::parse_str(r#"grep -Eo \w\w\sa[^.]*"#)?;
+            | Command::parse_str(r#"grep -Eo "\w\w\sa[^.]*""#)?
+            | Command::parse_str(r#"sed "s/test/TEST/""#)?;
 
         assert_eq!(pipe.pipeline[0].0.get_program(), "echo");
         assert_eq!(
             pipe.pipeline[0].0.get_args().collect::<Vec<&OsStr>>(),
-            &["\"This is a test.\""]
+            &[r#""This is a test.""#]
         );
         assert_eq!(pipe.pipeline[1].0.get_program(), "grep");
         assert_eq!(
             pipe.pipeline[1].0.get_args().collect::<Vec<&OsStr>>(),
-            &["-Eo", r"\w\w\sa[^.]*"]
+            &["-Eo", r#""\w\w\sa[^.]*""#]
+        );
+        assert_eq!(pipe.pipeline[2].0.get_program(), "sed");
+        assert_eq!(
+            pipe.pipeline[2].0.get_args().collect::<Vec<&OsStr>>(),
+            &[r#""s/test/TEST/""#]
         );
 
         Ok(())
