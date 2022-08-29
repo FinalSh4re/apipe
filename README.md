@@ -37,10 +37,9 @@ let output = pipe.spawn_with_output()?;
 assert_eq!(output.stdout(), "is a test\n".as_bytes());
 ```
 
-[Command]s can also be constructed manually if you want:
+`Command`s can also be constructed manually if you want:
 
 ```rust
-# use apipe::Command;
 let mut command = Command::new("ls").arg("-la");
 ```
 
